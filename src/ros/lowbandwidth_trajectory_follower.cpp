@@ -249,10 +249,10 @@ end
 
 )";
 
-LowBandwidthTrajectoryFollower::LowBandwidthTrajectoryFollower(URCommander &commander, std::string &reverse_ip,
+LowBandwidthTrajectoryFollower::LowBandwidthTrajectoryFollower(URStream &stream, std::string &reverse_ip,
                                                                int reverse_port, bool version_3)
   : running_(false)
-  , commander_(commander)
+  , stream_(stream)
   , server_(reverse_port)
   , time_interval_(0.008)
   , servoj_time_(0.008)
@@ -296,6 +296,15 @@ LowBandwidthTrajectoryFollower::LowBandwidthTrajectoryFollower(URCommander &comm
   LOG_INFO("Low Bandwidth Trajectory Follower is initialized!");
 }
 
+bool LowBandwidthTrajectoryFollower::uploadProg(const std::string &s)
+{
+  LOG_DEBUG("Sending LowBandwidthTrajectoryFollower program [%s]", s.c_str());
+  size_t len = s.size();
+  const uint8_t *data = reinterpret_cast<const uint8_t *>(s.c_str());
+  size_t written;
+  return stream_.write(data, len, written);
+}
+
 bool LowBandwidthTrajectoryFollower::start()
 {
   LOG_INFO("Starting LowBandwidthTrajectoryFollower");
@@ -305,7 +314,7 @@ bool LowBandwidthTrajectoryFollower::start()
 
   LOG_INFO("Uploading trajectory program to robot");
 
-  if (!commander_.uploadProg(program_))
+  if (!uploadProg(program_))
   {
     LOG_ERROR("Program upload failed!");
     return false;
