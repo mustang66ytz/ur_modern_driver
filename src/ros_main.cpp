@@ -160,8 +160,7 @@ int main(int argc, char **argv)
     if (args.use_lowbandwidth_trajectory_follower)
     {
       LOG_INFO("Use low bandwidth trajectory follower");
-      traj_follower =
-          new LowBandwidthTrajectoryFollower(*rt_commander, local_ip, args.reverse_port, factory.isVersion3());
+      traj_follower = new LowBandwidthTrajectoryFollower(rt_stream, local_ip, args.reverse_port, factory.isVersion3());
     }
     else
     {
