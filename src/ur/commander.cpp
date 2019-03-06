@@ -16,11 +16,141 @@
  * limitations under the License.
  */
 
-#include "ur_modern_driver/ur/commander.h"
 #include "ur_modern_driver/log.h"
+#include "ur_modern_driver/ur/commander.h"
+
+static const int32_t MULT_JOINTSTATE_ = 1000000;
+static const std::string JOINT_STATE_REPLACE("{{JOINT_STATE_REPLACE}}");
+static const std::string SERVO_J_REPLACE("{{SERVO_J_REPLACE}}");
+static const std::string SERVER_IP_REPLACE("{{SERVER_IP_REPLACE}}");
+static const std::string SERVER_PORT_REPLACE("{{SERVER_PORT_REPLACE}}");
+static const std::string POSITION_PROGRAM = R"(
+def driverProg():
+	MULT_jointstate = {{JOINT_STATE_REPLACE}}
+
+	SERVO_IDLE = 0
+	SERVO_RUNNING = 1
+	cmd_servo_state = SERVO_IDLE
+	cmd_servo_q = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+	def set_servo_setpoint(q):
+		enter_critical
+		cmd_servo_state = SERVO_RUNNING
+		cmd_servo_q = q
+		exit_critical
+	end
+
+	thread servoThread():
+		state = SERVO_IDLE
+		while True:
+			enter_critical
+			q = cmd_servo_q
+			do_brake = False
+			if (state == SERVO_RUNNING) and (cmd_servo_state == SERVO_IDLE):
+				do_brake = True
+			end
+			state = cmd_servo_state
+			cmd_servo_state = SERVO_IDLE
+			exit_critical
+			if do_brake:
+				stopj(1.0)
+				sync()
+			elif state == SERVO_RUNNING:
+				servoj(q, {{SERVO_J_REPLACE}})
+			else:
+				sync()
+			end
+		end
+	end
+
+  socket_open("{{SERVER_IP_REPLACE}}", {{SERVER_PORT_REPLACE}})
+
+  thread_servo = run servoThread()
+  keepalive = 1
+  while keepalive > 0:
+	  params_mult = socket_read_binary_integer(6+1)
+	  if params_mult[0] > 0:
+		  q = [params_mult[1] / MULT_jointstate, params_mult[2] / MULT_jointstate, params_mult[3] / MULT_jointstate, params_mult[4] / MULT_jointstate, params_mult[5] / MULT_jointstate, params_mult[6] / MULT_jointstate]
+		  keepalive = params_mult[7]
+		  set_servo_setpoint(q)
+	  end
+  end
+  sleep(.1)
+  socket_close()
+  kill thread_servo
+end
+)";
+
+URCommander::URCommander(URStream &stream, const URCommanderOpts &options)
+  : stream_(stream)
+  , server_(options.reverse_port)
+  , servoj_time_(options.servoj_time)
+  , servoj_lookahead_time_(options.servoj_lookahead_time)
+  , servoj_gain_(options.servoj_gain)
+  , servo_loop_running_(false)
+{
+  std::string res(POSITION_PROGRAM);
+  res.replace(res.find(JOINT_STATE_REPLACE), JOINT_STATE_REPLACE.length(), std::to_string(MULT_JOINTSTATE_));
+
+  std::ostringstream out;
+  out << "t=" << std::fixed << std::setprecision(4) << servoj_time_;
+  if (options.version_3)
+    out << ", lookahead_time=" << servoj_lookahead_time_ << ", gain=" << servoj_gain_;
+
+  res.replace(res.find(SERVO_J_REPLACE), SERVO_J_REPLACE.length(), out.str());
+  res.replace(res.find(SERVER_IP_REPLACE), SERVER_IP_REPLACE.length(), options.reverse_ip);
+  res.replace(res.find(SERVER_PORT_REPLACE), SERVER_PORT_REPLACE.length(), std::to_string(options.reverse_port));
+  program_ = res;
+
+  if (!server_.bind())
+  {
+    LOG_ERROR("Failed to bind server, the port %d is likely already in use", options.reverse_port);
+    std::exit(-1);
+  }
+}
+
+bool URCommander::startServoLoop()
+{
+  if (servo_loop_running_)
+    return true;
+
+  LOG_INFO("Uploading trajectory program to robot");
+
+  if (!uploadProg(program_))
+  {
+    LOG_ERROR("Program upload failed!");
+    return false;
+  }
+
+  LOG_DEBUG("Awaiting incoming robot connection");
+
+  if (!server_.accept())
+  {
+    LOG_ERROR("Failed to accept incoming robot connection");
+    return false;
+  }
+
+  return (servo_loop_running_ = true);
+}
+
+void URCommander::stopServoLoop()
+{
+  if (!servo_loop_running_)
+    return;
+
+  server_.disconnectClient();
+
+  servo_loop_running_ = false;
+}
 
 bool URCommander::write(const std::string &s)
 {
+  if (servo_loop_running_)
+  {
+    LOG_WARN("Sending a new command while servo loop is running would interfere. Ignoring request");
+    return false;
+  }
+
   size_t len = s.size();
   const uint8_t *data = reinterpret_cast<const uint8_t *>(s.c_str());
   size_t written;
@@ -36,6 +166,28 @@ void URCommander::formatArray(std::ostringstream &out, std::array<double, 6> &va
     mod = ",";
   }
   out << "]";
+}
+
+bool URCommander::servoj(std::array<double, 6> &positions, bool keep_alive)
+{
+  if (!servo_loop_running_)
+    return false;
+
+  uint8_t buf[sizeof(uint32_t) * 7];
+  uint8_t *idx = buf;
+
+  for (auto const &pos : positions)
+  {
+    int32_t val = static_cast<int32_t>(pos * MULT_JOINTSTATE_);
+    val = htobe32(val);
+    idx += append(idx, val);
+  }
+
+  int32_t val = htobe32(static_cast<int32_t>(keep_alive));
+  append(idx, val);
+
+  size_t written;
+  return server_.write(buf, sizeof(buf), written);
 }
 
 bool URCommander::uploadProg(const std::string &s)
