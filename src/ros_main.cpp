@@ -34,6 +34,9 @@ static const std::string TOOL_FRAME_ARG("~tool_frame");
 static const std::string TCP_LINK_ARG("~tcp_link");
 static const std::string JOINT_NAMES_PARAM("hardware_interface/joints");
 static const std::string SHUTDOWN_ON_DISCONNECT_ARG("~shutdown_on_disconnect");
+static const std::string SERVOJ_TIME("~servoj_time");
+static const std::string SERVOJ_LOOKAHEAD_TIME("~servoj_lookahead_time");
+static const std::string SERVOJ_GAIN("~servoj_gain");
 
 static const std::vector<std::string> DEFAULT_JOINTS = { "shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint",
                                                          "wrist_1_joint",      "wrist_2_joint",       "wrist_3_joint" };
@@ -57,6 +60,9 @@ public:
   bool use_ros_control;
   bool use_lowbandwidth_trajectory_follower;
   bool shutdown_on_disconnect;
+  double servoj_time;
+  double servoj_lookahead_time;
+  double servoj_gain;
 };
 
 class IgnorePipelineStoppedNotifier : public INotifier
@@ -105,6 +111,9 @@ bool parse_args(ProgArgs &args)
   ros::param::param(TCP_LINK_ARG, args.tcp_link, args.prefix + "tool0");
   ros::param::param(JOINT_NAMES_PARAM, args.joint_names, DEFAULT_JOINTS);
   ros::param::param(SHUTDOWN_ON_DISCONNECT_ARG, args.shutdown_on_disconnect, true);
+  ros::param::param(SERVOJ_TIME, args.servoj_time, 0.008);
+  ros::param::param(SERVOJ_LOOKAHEAD_TIME, args.servoj_lookahead_time, 0.03);
+  ros::param::param(SERVOJ_GAIN, args.servoj_gain, 300.);
   return true;
 }
 
@@ -138,7 +147,13 @@ int main(int argc, char **argv)
   URStream rt_stream(args.host, UR_RT_PORT);
   URProducer<RTPacket> rt_prod(rt_stream, *rt_parser);
   RTPublisher rt_pub(args.prefix, args.base_frame, args.tool_frame, args.use_ros_control);
-  auto rt_commander = factory.getCommander(rt_stream);
+  URCommanderOpts rt_commander_opts;
+  rt_commander_opts.reverse_ip = local_ip;
+  rt_commander_opts.reverse_port = args.reverse_port;
+  rt_commander_opts.servoj_time = args.servoj_time;
+  rt_commander_opts.servoj_lookahead_time = args.servoj_lookahead_time;
+  rt_commander_opts.servoj_gain = args.servoj_gain;
+  auto rt_commander = factory.getCommander(rt_stream, rt_commander_opts);
   vector<IConsumer<RTPacket> *> rt_vec{ &rt_pub };
 
   INotifier *notifier(nullptr);
@@ -147,8 +162,7 @@ int main(int argc, char **argv)
   if (args.use_ros_control)
   {
     LOG_INFO("ROS control enabled");
-    TrajectoryFollower *traj_follower =
-        new TrajectoryFollower(*rt_commander, local_ip, args.reverse_port, factory.isVersion3());
+    TrajectoryFollower *traj_follower = new TrajectoryFollower(*rt_commander);
     controller = new ROSController(*rt_commander, *traj_follower, args.joint_names, args.max_vel_change, args.tcp_link);
     rt_vec.push_back(controller);
     services.push_back(controller);
@@ -165,7 +179,7 @@ int main(int argc, char **argv)
     else
     {
       LOG_INFO("Use standard trajectory follower");
-      traj_follower = new TrajectoryFollower(*rt_commander, local_ip, args.reverse_port, factory.isVersion3());
+      traj_follower = new TrajectoryFollower(*rt_commander);
     }
     action_server = new ActionServer(*traj_follower, args.joint_names, args.max_velocity);
     rt_vec.push_back(action_server);
@@ -205,7 +219,7 @@ int main(int argc, char **argv)
   rt_pl.run();
   state_pl.run();
 
-  auto state_commander = factory.getCommander(state_stream);
+  auto state_commander = factory.getCommander(state_stream, URCommanderOpts());
   IOService io_service(*state_commander);
 
   if (action_server)

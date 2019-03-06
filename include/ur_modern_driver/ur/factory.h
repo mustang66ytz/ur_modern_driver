@@ -76,14 +76,14 @@ public:
     return major_version_ == 3;
   }
 
-  std::unique_ptr<URCommander> getCommander(URStream& stream)
+  std::unique_ptr<URCommander> getCommander(URStream& stream, const URCommanderOpts& options)
   {
     if (major_version_ == 1)
-      return std::unique_ptr<URCommander>(new URCommander_V1_X(stream));
+      return std::unique_ptr<URCommander>(new URCommander_V1_X(stream, options));
     else if (minor_version_ < 3)
-      return std::unique_ptr<URCommander>(new URCommander_V3_1__2(stream));
+      return std::unique_ptr<URCommander>(new URCommander_V3_1__2(stream, options));
     else
-      return std::unique_ptr<URCommander>(new URCommander_V3_3(stream));
+      return std::unique_ptr<URCommander>(new URCommander_V3_3(stream, options));
   }
 
   std::unique_ptr<URParser<StatePacket>> getStateParser()
