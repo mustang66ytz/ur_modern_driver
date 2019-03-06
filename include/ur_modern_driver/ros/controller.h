@@ -73,7 +73,7 @@ private:
   void reset();
 
 public:
-  ROSController(URCommander& commander, TrajectoryFollower& follower, std::vector<std::string>& joint_names,
+  ROSController(URCommander& commander, std::vector<std::string>& joint_names,
                 double max_vel_change, std::string tcp_link);
   virtual ~ROSController()
   {
