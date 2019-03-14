@@ -68,11 +68,11 @@ public:
 class PositionInterface : public HardwareInterface, public hardware_interface::PositionJointInterface
 {
 private:
-  TrajectoryFollower &follower_;
+  URCommander &commander_;
   std::array<double, 6> position_cmd_;
 
 public:
-  PositionInterface(TrajectoryFollower &follower, hardware_interface::JointStateInterface &js_interface,
+  PositionInterface(URCommander &commander, hardware_interface::JointStateInterface &js_interface,
                     std::vector<std::string> &joint_names);
   virtual bool write();
   virtual void start();
