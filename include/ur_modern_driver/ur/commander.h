@@ -23,9 +23,9 @@ private:
 
   URServer server_;
 
-  std::string program_;
-  double servoj_time_, servoj_lookahead_time_, servoj_gain_;
+  std::string position_program_, velocity_program_;
   bool servo_loop_running_;
+  double servoj_time_;
 
   template <typename T>
   size_t append(uint8_t *buffer, T &val)
@@ -36,13 +36,15 @@ private:
   }
 
 protected:
+  void preparePositionProgram(const URCommanderOpts &options);
+  void prepareVelocityProgram(const URCommanderOpts &options, const std::string &speedj_replace);
+
   bool write(const std::string &s);
   void formatArray(std::ostringstream &out, std::array<double, 6> &values);
 
 public:
   URCommander(URStream &stream, const URCommanderOpts &options);
 
-  virtual bool speedj(std::array<double, 6> &speeds, double acceleration) = 0;
   virtual bool setDigitalOut(uint8_t pin, bool value) = 0;
   virtual bool setAnalogOut(uint8_t pin, double value) = 0;
 
@@ -53,6 +55,10 @@ public:
   bool setFlag(uint8_t pin, bool value);
   bool setPayload(double value);
 
+  bool startSpeedLoop();
+  void stopSpeedLoop();
+  bool speedj(std::array<double, 6> &speeds, double acceleration, bool keep_alive = true);
+
   bool startServoLoop();
   void stopServoLoop();
   bool servoj(std::array<double, 6> &positions, bool keep_alive);
@@ -62,46 +68,39 @@ public:
   }
 };
 
-class URCommander_V1_X : public URCommander
+class URCommander_CB : public URCommander
 {
 public:
-  URCommander_V1_X(URStream &stream, const URCommanderOpts &options) : URCommander(stream, options)
+  URCommander_CB(URStream &stream, const URCommanderOpts &options);
+};
+
+class URCommander_V1_X : public URCommander_CB
+{
+public:
+  URCommander_V1_X(URStream &stream, const URCommanderOpts &options) : URCommander_CB(stream, options)
   {
   }
 
-  virtual bool speedj(std::array<double, 6> &speeds, double acceleration);
   virtual bool setDigitalOut(uint8_t pin, bool value);
   virtual bool setAnalogOut(uint8_t pin, double value);
 };
 
-class URCommander_V3_X : public URCommander
+class URCommander_V3_X : public URCommander_CB
 {
 public:
-  URCommander_V3_X(URStream &stream, const URCommanderOpts &options) : URCommander(stream, options)
+  URCommander_V3_X(URStream &stream, const URCommanderOpts &options) : URCommander_CB(stream, options)
   {
   }
 
-  virtual bool speedj(std::array<double, 6> &speeds, double acceleration) = 0;
   virtual bool setDigitalOut(uint8_t pin, bool value);
   virtual bool setAnalogOut(uint8_t pin, double value);
 };
 
-class URCommander_V3_1__2 : public URCommander_V3_X
+class URCommander_e : public URCommander
 {
 public:
-  URCommander_V3_1__2(URStream &stream, const URCommanderOpts &options) : URCommander_V3_X(stream, options)
-  {
-  }
+  URCommander_e(URStream &stream, const URCommanderOpts &options);
 
-  virtual bool speedj(std::array<double, 6> &speeds, double acceleration);
-};
-
-class URCommander_V3_3 : public URCommander_V3_X
-{
-public:
-  URCommander_V3_3(URStream &stream, const URCommanderOpts &options) : URCommander_V3_X(stream, options)
-  {
-  }
-
-  virtual bool speedj(std::array<double, 6> &speeds, double acceleration);
+  virtual bool setDigitalOut(uint8_t pin, bool value);
+  virtual bool setAnalogOut(uint8_t pin, double value);
 };

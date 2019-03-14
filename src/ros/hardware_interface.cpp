@@ -52,6 +52,16 @@ bool VelocityInterface::write()
   return commander_.speedj(prev_velocity_cmd_, max_vel_change_);
 }
 
+void VelocityInterface::start()
+{
+  commander_.startSpeedLoop();
+}
+
+void VelocityInterface::stop()
+{
+  commander_.stopSpeedLoop();
+}
+
 void VelocityInterface::reset()
 {
   for (auto &val : prev_velocity_cmd_)

@@ -80,10 +80,10 @@ public:
   {
     if (major_version_ == 1)
       return std::unique_ptr<URCommander>(new URCommander_V1_X(stream, options));
-    else if (minor_version_ < 3)
-      return std::unique_ptr<URCommander>(new URCommander_V3_1__2(stream, options));
+    else if (major_version_ == 3)
+      return std::unique_ptr<URCommander>(new URCommander_V3_X(stream, options));
     else
-      return std::unique_ptr<URCommander>(new URCommander_V3_3(stream, options));
+      return std::unique_ptr<URCommander>(new URCommander_e(stream, options));
   }
 
   std::unique_ptr<URParser<StatePacket>> getStateParser()
