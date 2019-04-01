@@ -83,24 +83,29 @@ def driverProg():
 
 	thread speedThread():
 		state = SPEED_IDLE
+		missing_packets = 0
 		while True:
 			enter_critical
 			qd = cmd_speed_qd
       qdd = cmd_speed_qdd
 			do_brake = False
-			if (state == SPEED_RUNNING) and (cmd_speed_state == SPEED_IDLE):
+			if cmd_speed_state == SPEED_IDLE:
 				do_brake = True
 			end
 			state = cmd_speed_state
 			cmd_speed_state = SPEED_IDLE
 			exit_critical
 			if do_brake:
+				missing_packets = missing_packets + 1
+			else:
+				missing_packets = 0
+			end
+			if missing_packets >= 2:
+				textmsg("braking")
 				stopj(1.0)
 				sync()
-			elif state == SPEED_RUNNING:
-				speedj(qd, qdd{{SPEED_J_REPLACE}})
 			else:
-				sync()
+				speedj(qd, qdd{{SPEED_J_REPLACE}})
 			end
 		end
 	end
@@ -116,6 +121,8 @@ def driverProg():
       qdd = params_mult[7] / MULT_jointstate
 		  keepalive = params_mult[8]
 		  set_speed_setpoint(qd, qdd)
+    else:
+      break
 	  end
   end
   sleep(.1)
