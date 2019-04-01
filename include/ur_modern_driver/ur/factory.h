@@ -76,6 +76,11 @@ public:
     return major_version_ == 3;
   }
 
+  bool isVersion5()
+  {
+    return major_version_ == 5;
+  }
+
   std::unique_ptr<URCommander> getCommander(URStream& stream)
   {
     if (major_version_ == 1)

@@ -1,7 +1,8 @@
 #include "ur_modern_driver/ros/controller.h"
 
 ROSController::ROSController(URCommander& commander, TrajectoryFollower& follower,
-                             std::vector<std::string>& joint_names, double max_vel_change, std::string tcp_link)
+                             std::vector<std::string>& joint_names, double max_vel_change, std::string tcp_link,
+                             bool version_5)
   : controller_(this, nh_)
   , robot_state_received_(false)
   , joint_interface_(joint_names)
@@ -12,7 +13,14 @@ ROSController::ROSController(URCommander& commander, TrajectoryFollower& followe
   registerInterface(&joint_interface_);
   registerInterface(&wrench_interface_);
   registerControllereInterface(&position_interface_);
-  registerControllereInterface(&velocity_interface_);
+  if (version_5)
+  {
+    LOG_ERROR("URe series robots currently do not support ros_control velocity interface.");
+  }
+  else
+  {
+    registerControllereInterface(&velocity_interface_);
+  }
 }
 
 void ROSController::setupConsumer()
