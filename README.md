@@ -36,6 +36,36 @@ A new driver for the UR3/UR5/UR10 robot arms from Universal Robots. It is design
     * A list of the loaded and running controllers can be found by a call to the controller_manager ```rosservice call /controller_manager/list_controllers {} ```
     * The running position trajectory controller can be stopped with a call to  ```rosservice call /universal_robot/controller_manager/switch_controller "start_controllers: - '' stop_controllers: - 'pos_based_pos_traj_controller' strictness: 1" ``` (Remember you can use tab-completion for this)
    
+## ARTC usage
+This section is for setting up the ros-ur10 usage in ARTC level 1:
+### From the UR robot side:
+* Start the robot
+* Check the robot ip address, which should be static, 192.168.1.13
+* Click "Load Program", open the ur-ros.urcap from "Eric" directory
+### From the PC side:
+* configure your PC ip address. I use 192.168.1.14 for my case.
+* connect to the UR through a ethernet cable
+* build the project
+```bash
+# create a catkin workspace
+$ mkdir -p catkin_ws/src && cd catkin_ws
+$ cd src
+$ git clone <this repo>
+$ cd ..
+# build the workspace
+$ catkin_make
+$ source devel/setup.bash
+'''
+* test the connectivity using moveit!
+```bash
+# run the ur modern driver in a new terminal 
+$ roslaunch ur_modern_driver ur10_bringup.launch robot_ip:=192.168.56.101
+# run the moveit in two new terminals
+$ roslaunch ur10_moveit_config ur10_moveit_planning_execution.launch 
+$ roslaunch ur10_moveit_config moveit_rviz.launch config:=true
+```
+* use moveit gui for planning and execution, make sure keep an eye on the physical robot.
+
 
 ## Installation
 
@@ -62,6 +92,7 @@ sudo apt install ros-<distro>-ur-description
 ```
 
 Where <distro> is the ROS distribution your machine is running on. You may want to run MoveIt to plan and execute actions on the arm. You can do so by simply entering the following commands after launching ```ur_modern_driver```:
+
 ```
 roslaunch urXX_moveit_config ur5_moveit_planning_executing.launch
 roslaunch urXX_moveit_config moveit_rviz.launch config:=true
@@ -160,4 +191,5 @@ Please cite the following report if using this driver
 
 
 The report can be downloaded from http://orbit.dtu.dk/en/publications/optimizing-the-universal-robots-ros-driver(20dde139-7e87-4552-8658-dbf2cdaab24b).html
+
 
