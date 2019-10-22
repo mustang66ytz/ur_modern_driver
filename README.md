@@ -55,7 +55,7 @@ $ cd ..
 # build the workspace
 $ catkin_make
 $ source devel/setup.bash
-'''
+```
 * test the connectivity using moveit!
 ```bash
 # run the ur modern driver in a new terminal 
